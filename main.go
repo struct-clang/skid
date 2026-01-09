@@ -1,40 +1,35 @@
 package main
 
 import (
-	"crypto/rand"
-	"encoding/hex"
 	"fmt"
-	"io"
-
-	"github.com/cloudflare/circl/dh/x448"
-	"github.com/cloudflare/circl/kem/kyber/kyber768"
+	"skid/internal/crypto"
 )
 
 func main() {
-	// x448 keygen
-	var x448PublicKey, x448SecretKey x448.Key
-
-	_, _ = io.ReadFull(rand.Reader, x448SecretKey[:])
-	x448.KeyGen(&x448PublicKey, &x448SecretKey)
-
-	fmt.Println(hex.EncodeToString(x448PublicKey[:]), hex.EncodeToString(x448SecretKey[:]))
-
 	// mlkem768 keygen
 
-	kyberPublicKey, kyberSecretKey, err := kyber768.GenerateKeyPair(rand.Reader)
+	kyberPublicKey, kyberSecretKey, err := crypto.GenerateKyberKeyPair()
 	if err != nil {
+		fmt.Println("error generating kyber keypair:", err)
 		return
 	}
 
-	pkBytes, err := kyberPublicKey.MarshalBinary()
+	ct, ss, err := crypto.EncapsulateKyber(kyberPublicKey)
 	if err != nil {
+		fmt.Println("error encapsulating kyber key:", err)
 		return
 	}
 
-	skBytes, err := kyberSecretKey.MarshalBinary()
+	fmt.Printf("Kyber Public Key: %x\n", kyberPublicKey)
+	fmt.Printf("Kyber Secret Key: %x\n", kyberSecretKey)
+	fmt.Printf("Kyber Ciphertext: %x\n", ct)
+	fmt.Printf("Kyber Shared Secret: %x\n", ss)
+
+	decapsulatedSS, err := crypto.DecapsulateKyber(kyberSecretKey, ct)
 	if err != nil {
+		fmt.Println("error decapsulating kyber key:", err)
 		return
 	}
 
-	fmt.Println(hex.EncodeToString(pkBytes), "\n\n\n\n", hex.EncodeToString(skBytes))
+	fmt.Printf("Kyber Decapsulated Shared Secret: %x\n", decapsulatedSS)
 }
