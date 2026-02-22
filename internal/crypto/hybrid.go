@@ -13,14 +13,23 @@ type HybridResult struct {
 }
 
 func HybridEncrypt(receiverECDHPublic, receiverKyberPublic, senderECDHPrivate []byte) (*HybridResult, error) {
-	ECDHSS := DeriveECDHSharedSecret(senderECDHPrivate, receiverECDHPublic)
+	ECDHSS, err := DeriveECDHSharedSecret(senderECDHPrivate, receiverECDHPublic)
+	if err != nil {
+		return nil, err
+	}
+	defer Wipe(ECDHSS)
+
 	kyberCT, kyberSS, err := EncapsulateKyber(receiverKyberPublic)
 	if err != nil {
 		return nil, err
 	}
+	defer Wipe(kyberSS)
 
-	inputKeyMaterial := append(kyberSS, ECDHSS...)
-	kdf := hkdf.New(sha256.New, inputKeyMaterial, nil, nil)
+	inputKeyMaterial := make([]byte, 0, len(kyberSS)+len(ECDHSS))
+	inputKeyMaterial = append(inputKeyMaterial, kyberSS...)
+	inputKeyMaterial = append(inputKeyMaterial, ECDHSS...)
+	defer Wipe(inputKeyMaterial)
+	kdf := hkdf.New(sha256.New, inputKeyMaterial, nil, []byte("skid-hybrid-session-key-v1"))
 
 	sessionKey := make([]byte, 32)
 	if _, err := io.ReadFull(kdf, sessionKey); err != nil {
@@ -34,15 +43,23 @@ func HybridEncrypt(receiverECDHPublic, receiverKyberPublic, senderECDHPrivate []
 }
 
 func HybridDecrypt(senderECDHPublic, receiverECDHPrivate, receiverKyberPrivate, kyberCT []byte) ([]byte, error) {
-	ECDHSS := DeriveECDHSharedSecret(receiverECDHPrivate, senderECDHPublic)
+	ECDHSS, err := DeriveECDHSharedSecret(receiverECDHPrivate, senderECDHPublic)
+	if err != nil {
+		return nil, err
+	}
+	defer Wipe(ECDHSS)
 
 	kyberSS, err := DecapsulateKyber(receiverKyberPrivate, kyberCT)
 	if err != nil {
 		return nil, err
 	}
+	defer Wipe(kyberSS)
 
-	inputKeyMaterial := append(kyberSS, ECDHSS...)
-	kdf := hkdf.New(sha256.New, inputKeyMaterial, nil, nil)
+	inputKeyMaterial := make([]byte, 0, len(kyberSS)+len(ECDHSS))
+	inputKeyMaterial = append(inputKeyMaterial, kyberSS...)
+	inputKeyMaterial = append(inputKeyMaterial, ECDHSS...)
+	defer Wipe(inputKeyMaterial)
+	kdf := hkdf.New(sha256.New, inputKeyMaterial, nil, []byte("skid-hybrid-session-key-v1"))
 
 	sessionKey := make([]byte, 32)
 	if _, err := io.ReadFull(kdf, sessionKey); err != nil {

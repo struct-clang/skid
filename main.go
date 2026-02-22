@@ -18,19 +18,25 @@ func main() {
 		panic(err)
 	}
 
-	encrypted, err := protocol.Encrypt("Hello", alicePublicKeys, alicePrivateKeys, bobPublicKeys)
+	encrypted, err := protocol.Encrypt(
+		"Hello",
+		alicePublicKeys,
+		alicePrivateKeys,
+		bobPublicKeys,
+		identity.LongTermIdentityHash(bobPublicKeys),
+	)
 	if err != nil {
 		panic(err)
 	}
 
-	authorDecrypted, err := protocol.Decrypt(encrypted, alicePublicKeys, alicePrivateKeys, alicePublicKeys, true)
-	if err != nil {
-		panic(err)
-	}
-
-	fmt.Printf("Author decrypted message: %s\n", string(authorDecrypted))
-
-	decrypted, err := protocol.Decrypt(encrypted, bobPublicKeys, bobPrivateKeys, alicePublicKeys, false)
+	decrypted, err := protocol.Decrypt(
+		encrypted,
+		bobPublicKeys,
+		bobPrivateKeys,
+		alicePublicKeys,
+		false,
+		identity.LongTermIdentityHash(alicePublicKeys),
+	)
 	if err != nil {
 		panic(err)
 	}

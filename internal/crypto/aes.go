@@ -2,11 +2,14 @@ package crypto
 
 import (
 	"crypto/sha256"
+	"fmt"
 	"io"
 
 	"github.com/tink-crypto/tink-go/v2/aead/subtle"
 	"golang.org/x/crypto/hkdf"
 )
+
+const aesGCMSIVNonceSize = 12
 
 func NewAes(key []byte) (*subtle.AESGCMSIV, error) {
 	return subtle.NewAESGCMSIV(key)
@@ -31,17 +34,26 @@ func Encrypt(key, plaintext []byte) ([]byte, []byte, error) {
 	if err != nil {
 		return nil, nil, err
 	}
+	if len(fullResult) < aesGCMSIVNonceSize {
+		return nil, nil, fmt.Errorf("ciphertext too short: %d", len(fullResult))
+	}
 
-	return fullResult[:12], fullResult[12:], nil
+	iv := fullResult[:aesGCMSIVNonceSize]
+	ciphertext := fullResult[aesGCMSIVNonceSize:]
+	return iv, ciphertext, nil
 }
 
-func Decrypt(key, ciphertext, iv []byte) ([]byte, error) {
+func Decrypt(key, iv, ciphertext []byte) ([]byte, error) {
+	if len(iv) != aesGCMSIVNonceSize {
+		return nil, fmt.Errorf("invalid nonce size: got %d, want %d", len(iv), aesGCMSIVNonceSize)
+	}
+
 	aes, err := NewAes(key)
 	if err != nil {
 		return nil, err
 	}
 
-	fullCiphertext := append(iv, ciphertext...)
+	fullCiphertext := append(append([]byte{}, iv...), ciphertext...)
 
 	return aes.Decrypt(fullCiphertext, nil)
 }
